@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Dislike",
+  "version": "1.0",
+  "description": "Automatische Textübersetzung in Blöcken mit Download-Funktion.",
+  "permissions": ["scripting", "storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://www.linkedin.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "host_permissions": ["*://www.linkedin.com/*"]
+}
