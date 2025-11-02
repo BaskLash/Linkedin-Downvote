@@ -2,13 +2,20 @@
   "manifest_version": 3,
   "name": "LinkedIn Dislike",
   "version": "1.0",
-  "description": "Automatische Textübersetzung in Blöcken mit Download-Funktion.",
+  "description": "Ermöglicht Dislikes auf LinkedIn-Posts.",
   "permissions": ["scripting", "storage"],
+  "background": {
+  "service_worker": "background.js"
+},
+  "host_permissions": [
+  "*://www.linkedin.com/*",
+  "http://localhost:8080/*",
+  "http://127.0.0.1:8080/*"
+],
   "content_scripts": [
     {
       "matches": ["*://www.linkedin.com/*"],
       "js": ["content.js"]
     }
-  ],
-  "host_permissions": ["*://www.linkedin.com/*"]
+  ]
 }
