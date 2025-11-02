@@ -129,43 +129,70 @@ function processPosts() {
       button.style.gap = "6px";
 
       const label = document.createElement("span");
-      label.textContent = "Downvote";
       label.style.fontSize = "14px";
       label.style.color = "#666";
-
       button.appendChild(label);
+
+      // === Zustand beim Laden prüfen ===
+      const votedPosts = JSON.parse(localStorage.getItem("linkdown-voted") || "[]");
+      const isAlreadyDownvoted = votedPosts.includes(postId);
+
+      if (isAlreadyDownvoted) {
+        label.textContent = "Downvoted";
+        label.style.fontStyle = "italic";
+      } else {
+        label.textContent = "Downvote";
+        label.style.fontStyle = "normal";
+      }
+
       span.appendChild(button);
       bar.insertBefore(span, bar.firstChild);
 
-      // === Klick: Sende an background.js ===
+      // === Klick: Toggle Dislike / Undo ===
       button.addEventListener("click", () => {
         const votedPosts = JSON.parse(localStorage.getItem("linkdown-voted") || "[]");
-        if (votedPosts.includes(postId)) {
-          alert("You have already downvoted this post.");
-          return;
-        }
+        const isDisliked = votedPosts.includes(postId);
 
-        button.disabled = true; // Verhindere Doppelklick
+        button.disabled = true;
+        const action = isDisliked ? "undislike" : "dislike";
 
         chrome.runtime.sendMessage(
-          { action: "dislike", post_id: postId, client_id: clientId },
+          { action, post_id: postId, client_id: clientId },
           (response) => {
             button.disabled = false;
 
             if (response?.success) {
-              votedPosts.push(postId);
-              localStorage.setItem("linkdown-voted", JSON.stringify(votedPosts));
+              if (isDisliked) {
+                // Undo
+                const index = votedPosts.indexOf(postId);
+                if (index > -1) votedPosts.splice(index, 1);
+                localStorage.setItem("linkdown-voted", JSON.stringify(votedPosts));
 
-              // Zähler lokal erhöhen
-              if (counter) {
-                const current = parseInt(counter.textContent, 10) || 0;
-                counter.textContent = current + 1;
+                label.textContent = "Downvote";
+                label.style.fontStyle = "normal";
+
+                if (counter) {
+                  const current = parseInt(counter.textContent, 10) || 0;
+                  counter.textContent = Math.max(current - 1, 0);
+                }
+              } else {
+                // Neuer Downvote
+                votedPosts.push(postId);
+                localStorage.setItem("linkdown-voted", JSON.stringify(votedPosts));
+
+                label.textContent = "Downvoted";
+                label.style.fontStyle = "italic";
+
+                if (counter) {
+                  const current = parseInt(counter.textContent, 10) || 0;
+                  counter.textContent = current + 1;
+                }
               }
 
-              // Optional: vom Server neu laden
+              // Immer: vom Server neu laden (sicherheitshalber)
               updateDislikeCount(postId, counter);
             } else {
-              alert(response?.message || "Fehler beim Downvoten.");
+              alert(response?.message || "Fehler beim Aktualisieren.");
             }
           }
         );
