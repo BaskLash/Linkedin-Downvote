@@ -201,21 +201,12 @@ function processPosts() {
   });
 }
 
-// === Scroll-Observer (debounced) ===
+// --- Effizienter Scroll-Observer ---
 let scrollTimeout;
 window.addEventListener("scroll", () => {
   clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(processPosts, 150);
+  scrollTimeout = setTimeout(processPosts, 100); // Debounce
 });
 
 // === Initialer Aufruf ===
 processPosts();
-
-// === Optional: MutationObserver für dynamische Inhalte ===
-const observer = new MutationObserver((mutations) => {
-  if (mutations.some(m => m.addedNodes.length > 0)) {
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(processPosts, 200);
-  }
-});
-observer.observe(document.body, { childList: true, subtree: true });
