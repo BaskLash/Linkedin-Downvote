@@ -1,5 +1,5 @@
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  const actions = ["dislike", "undislike", "get-dislike-count"];
+  const actions = ["dislike", "undislike", "get-dislike-count", "get-client-downvotes-today"];
   if (!actions.includes(msg.action)) return;
 
   if (msg.action === "get-dislike-count") {
@@ -7,6 +7,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then(r => r.json())
       .then(data => sendResponse(data))
       .catch(() => sendResponse({ dislike_count: 0 }));
+    return true;
+  }
+
+  if (msg.action === "get-client-downvotes-today") {
+    fetch(`https://linkedin.prompt-in.com/index.php?route=client-downvotes-today&client_id=${encodeURIComponent(msg.client_id)}`)
+      .then(r => r.json())
+      .then(data => sendResponse(data))
+      .catch(() => sendResponse({ downvotes_today: 0 }));
     return true;
   }
 

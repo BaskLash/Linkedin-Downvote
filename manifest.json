@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Dislike",
-  "version": "1.0",
+  "version": "1.0.0",
   "description": "Ermöglicht Dislikes auf LinkedIn-Posts.",
   "permissions": ["scripting", "storage"],
   "background": {
   "service_worker": "background.js"
 },
+"action": {
+    "default_popup": "popup.html"
+  },
   "host_permissions": [
   "*://www.linkedin.com/*",
   "http://localhost:8080/*",

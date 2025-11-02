@@ -44,15 +44,32 @@ function extractPostId(postElement) {
   return tempId;
 }
 
-// === Client-ID ===
-function getClientId() {
-  const key = "linkdown-client-id";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(key, id);
-  }
-  return id;
+// === Client-ID (EINHEITLICH über chrome.storage.local) ===
+async function getClientId() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['client_id'], (result) => {
+      let id = result.client_id;
+      if (!id) {
+        id = crypto.randomUUID();
+        chrome.storage.local.set({ client_id: id }, () => resolve(id));
+      } else {
+        resolve(id);
+      }
+    });
+  });
+}
+
+// === Voted-Posts (auch in chrome.storage.local) ===
+async function getVotedPosts() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['linkdown-voted'], (result) => {
+      resolve(result['linkdown-voted'] || []);
+    });
+  });
+}
+
+async function setVotedPosts(posts) {
+  return chrome.storage.local.set({ 'linkdown-voted': posts });
 }
 
 // === Dislike-Count vom Server laden ===
@@ -67,18 +84,17 @@ function updateDislikeCount(postId, counterElement) {
   );
 }
 
-// === Hauptfunktion: Posts verarbeiten ===
-function processPosts() {
+// === Hauptfunktion: Posts verarbeiten (async!) ===
+async function processPosts() {
   const bars = document.querySelectorAll(".feed-shared-social-action-bar");
-  bars.forEach(bar => {
+  for (const bar of bars) {
     const post = bar.closest("div.feed-shared-update-v2, article, .occludable-update");
-    if (!post || processedPosts.has(post)) return;
+    if (!post || processedPosts.has(post)) continue;
 
     processedPosts.add(post);
 
-    // === 1. Post-ID (eindeutig!) ===
     const postId = extractPostId(post);
-    const clientId = getClientId();
+    const clientId = await getClientId();
 
     // === 2. Zähler-Button (einmalig) ===
     let counter = post.querySelector(".linkdown-metrics-count");
@@ -109,7 +125,6 @@ function processPosts() {
         button.appendChild(counter);
         targetLi.appendChild(button);
 
-        // Lade aktuelle Zahl vom Server
         updateDislikeCount(postId, counter);
       }
     }
@@ -133,80 +148,61 @@ function processPosts() {
       label.style.color = "#666";
       button.appendChild(label);
 
-      // === Zustand beim Laden prüfen ===
-      const votedPosts = JSON.parse(localStorage.getItem("linkdown-voted") || "[]");
-      const isAlreadyDownvoted = votedPosts.includes(postId);
-
-      if (isAlreadyDownvoted) {
-        label.textContent = "Downvoted";
-        label.style.fontStyle = "italic";
-      } else {
-        label.textContent = "Downvote";
-        label.style.fontStyle = "normal";
-      }
-
       span.appendChild(button);
       bar.insertBefore(span, bar.firstChild);
 
-      // === Klick: Toggle Dislike / Undo ===
-      button.addEventListener("click", () => {
-        const votedPosts = JSON.parse(localStorage.getItem("linkdown-voted") || "[]");
-        const isDisliked = votedPosts.includes(postId);
+      // Zustand laden
+      const votedPosts = await getVotedPosts();
+      const isAlreadyDownvoted = votedPosts.includes(postId);
 
+      label.textContent = isAlreadyDownvoted ? "Downvoted" : "Downvote";
+      label.style.fontStyle = isAlreadyDownvoted ? "italic" : "normal";
+
+      // === Klick: Toggle ===
+      button.addEventListener("click", async () => {
         button.disabled = true;
+        const currentVoted = await getVotedPosts();
+        const isDisliked = currentVoted.includes(postId);
         const action = isDisliked ? "undislike" : "dislike";
 
         chrome.runtime.sendMessage(
           { action, post_id: postId, client_id: clientId },
-          (response) => {
+          async (response) => {
             button.disabled = false;
 
             if (response?.success) {
-              if (isDisliked) {
-                // Undo
-                const index = votedPosts.indexOf(postId);
-                if (index > -1) votedPosts.splice(index, 1);
-                localStorage.setItem("linkdown-voted", JSON.stringify(votedPosts));
+              let updatedVoted = await getVotedPosts();
 
+              if (isDisliked) {
+                updatedVoted = updatedVoted.filter(id => id !== postId);
                 label.textContent = "Downvote";
                 label.style.fontStyle = "normal";
-
-                if (counter) {
-                  const current = parseInt(counter.textContent, 10) || 0;
-                  counter.textContent = Math.max(current - 1, 0);
-                }
+                if (counter) counter.textContent = Math.max(parseInt(counter.textContent) - 1, 0);
               } else {
-                // Neuer Downvote
-                votedPosts.push(postId);
-                localStorage.setItem("linkdown-voted", JSON.stringify(votedPosts));
-
+                updatedVoted.push(postId);
                 label.textContent = "Downvoted";
                 label.style.fontStyle = "italic";
-
-                if (counter) {
-                  const current = parseInt(counter.textContent, 10) || 0;
-                  counter.textContent = current + 1;
-                }
+                if (counter) counter.textContent = parseInt(counter.textContent) + 1;
               }
 
-              // Immer: vom Server neu laden (sicherheitshalber)
+              await setVotedPosts(updatedVoted);
               updateDislikeCount(postId, counter);
             } else {
-              alert(response?.message || "Fehler beim Aktualisieren.");
+              alert(response?.message || "Fehler beim Server.");
             }
           }
         );
       });
     }
-  });
+  }
 }
 
 // --- Effizienter Scroll-Observer ---
 let scrollTimeout;
 window.addEventListener("scroll", () => {
   clearTimeout(scrollTimeout);
-  scrollTimeout = setTimeout(processPosts, 100); // Debounce
+  scrollTimeout = setTimeout(() => processPosts().catch(console.error), 100);
 });
 
 // === Initialer Aufruf ===
-processPosts();
+processPosts().catch(console.error);
