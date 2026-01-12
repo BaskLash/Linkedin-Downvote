@@ -46,5 +46,10 @@ async function getClientId() {
   return client_id;
 }
 
-document.getElementById('githubLink').href = 'https://github.com/BaskLash';
-document.getElementById('coffeeLink').href = 'https://buymeacoffee.com/olivierluethy';
+document.getElementById('feature-request').addEventListener("click", () => {
+  window.open("https://forms.gle/WiujCM52dckbAPNy8", "_blank");
+})
+
+document.getElementById('report-bug').addEventListener("click", () => {
+  window.open("https://forms.gle/kYXTwLcuQ7eLPXo57", "_blank");
+})

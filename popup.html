@@ -5,122 +5,126 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LinkedIn Downvote Tracker</title>
   <script src="script.js" defer></script>
-
-  <!-- Google Fonts & Icons -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
   <style>
+    /* Cleaned up, Extension-Safe CSS (Tailwind styles extracted) */
     :root {
-      --primary: #0077b5;
-      --accent: #4cd964;
-      --bg: #f4f6f9;
-      --card-bg: #ffffff;
-      --text: #1d1d1f;
+      --slate-50: #f8fafc; --slate-200: #e2e8f0; --slate-400: #94a3b8;
+      --slate-500: #64748b; --slate-600: #475569; --slate-800: #1e293b;
+      --slate-900: #0f172a; --blue-600: #2563eb; --blue-100: #dbeafe;
+    }
+    
+    body { 
+      font-family: 'Inter', sans-serif; 
+      background-color: var(--slate-50); 
+      color: var(--slate-800); 
+      width: 350px; 
+      min-height: 450px; 
+      margin: 0; padding: 1.25rem;
+      display: flex; flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
 
-    body {
-      margin: 0;
-      font-family: 'Inter', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      width: 340px;
-      min-height: 400px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 1.2rem;
-    }
-
-    .header {
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-
-    .header h1 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--primary);
-      margin: 0.3rem 0;
+    .header-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 4rem; height: 4rem; background-color: var(--blue-100);
+      border-radius: 9999px; margin-bottom: 0.75rem;
     }
 
     .card {
-      background: var(--card-bg);
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-      padding: 1rem;
-      width: 100%;
-      margin-bottom: 1rem;
-      transition: transform 0.2s ease;
+      background: white; border: 1px solid var(--slate-200);
+      border-radius: 1rem; padding: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      margin-bottom: 1rem; transition: all 0.2s ease;
     }
 
-    .card:hover {
-      transform: translateY(-3px);
-    }
+    .card:hover { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 
-    .count {
-      font-size: 2.8rem;
-      font-weight: 700;
-      color: var(--primary);
-    }
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem; }
 
-    .support {
-      font-size: 0.95rem;
-      line-height: 1.5;
+    .btn-action {
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      padding: 0.5rem; background: white; border: 1px solid var(--slate-200);
+      border-radius: 0.5rem; font-size: 0.75rem; font-weight: 600;
+      color: var(--slate-700); cursor: pointer; transition: background 0.2s;
     }
+    .btn-action:hover { background: var(--slate-50); border-color: var(--slate-400); }
 
-    .support a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 600;
-    }
+    .count-text { font-size: 3rem; font-weight: 900; color: var(--blue-600); }
 
-    .footer {
-      font-size: 0.8rem;
-      color: #888;
-      margin-top: auto;
-      text-align: center;
-      padding-top: 0.5rem;
+    @keyframes subtle-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
     }
+    .animate-pulse-subtle { animation: subtle-pulse 2s infinite ease-in-out; }
 
-    .pulse {
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.08); opacity: 0.9; }
-      100% { transform: scale(1); opacity: 1; }
-    }
+    ul { padding: 0; list-style: none; margin: 0; }
+    li { display: flex; align-items: center; font-size: 0.875rem; margin-bottom: 0.5rem; color: var(--slate-600); }
+    a { color: inherit; font-weight: 500; text-decoration: underline; text-decoration-color: var(--blue-100); text-underline-offset: 4px; transition: color 0.2s; }
+    a:hover { color: var(--blue-600); }
   </style>
 </head>
 
 <body>
-  <div class="header">
-    <i class="bi bi-hand-thumbs-down-fill" style="font-size:2.5rem; color:var(--primary);"></i>
-    <h1>Downvote Tracker</h1>
-    <p style="font-size:0.9rem; color:#666;">Your daily kindness stats</p>
+
+  <header style="text-align: center; margin-bottom: 1.5rem;">
+    <div class="header-icon">
+        <i class="bi bi-hand-thumbs-down-fill" style="font-size: 1.875rem; color: var(--blue-600);"></i>
+    </div>
+    <h1 style="font-size: 1.25rem; font-weight: 700; color: var(--slate-900); margin: 0;">Downvote Tracker</h1>
+    <p style="font-size: 0.75rem; font-weight: 500; color: var(--slate-500); text-transform: uppercase; letter-spacing: 0.05em; margin: 0.25rem 0 0 0;">Your daily kindness stats</p>
+  </header>
+
+  <div class="card">
+    <h2 style="font-size: 0.875rem; font-weight: 600; color: var(--slate-600); margin: 0 0 0.25rem 0;">Downvotes Today</h2>
+    <div id="downvoteCount" class="count-text animate-pulse-subtle">
+      Loading...
+    </div>
   </div>
 
   <div class="card">
-    <h2 style="margin:0 0 0.5rem 0; font-size:1.1rem;">Downvotes Today</h2>
-    <div id="downvoteCount" class="count pulse">Loading...</div>
-  </div>
-
-  <div class="card support">
-    <h3 style="margin-bottom:0.4rem; font-size:1.05rem;">Support this project ❤️</h3>
-    <p>
-      Help keep this extension alive! You can:
-    </p>
-    <ul style="margin:0; padding-left:1.2rem;">
-      <li>⭐ Star it on <a href="https://github.com/BaskLash/Linkedin-Downvote" id="githubLink" target="_blank">GitHub</a></li>
-      <li>☕ Buy me a coffee on <a href="https://buymeacoffee.com/olivierluethy" id="coffeeLink" target="_blank">buymeacoffee</a></li>
-      <li>💬 Share it with your friends</li>
+    <h3 style="font-size: 0.875rem; font-weight: 700; color: var(--slate-800); margin: 0 0 0.75rem 0;">
+      Support this project <span style="color: #ef4444;">❤️</span>
+    </h3>
+    <ul>
+      <li>
+        <i class="bi bi-star-fill" style="color: #fbbf24; margin-right: 0.5rem;"></i>
+        <a href="https://github.com/BaskLash/Linkedin-Downvote" target="_blank">Star on GitHub</a>
+      </li>
+      <li>
+        <i class="bi bi-cup-hot-fill" style="color: #fb923c; margin-right: 0.5rem;"></i>
+        <a href="https://buymeacoffee.com/olivierluethy" target="_blank">Buy me a coffee</a>
+      </li>
+      <li>
+        <i class="bi bi-chat-heart-fill" style="color: #f472b6; margin-right: 0.5rem;"></i>
+        <span>Share with friends</span>
+      </li>
     </ul>
   </div>
 
-  <div class="footer">
-    Built with 💙 for a kinder LinkedIn
+  <div class="btn-grid">
+    <button id="feature-request" class="btn-action">
+      <svg style="width: 1rem; height: 1rem; color: #f59e0b;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.674a1 1 0 00.922-.617l2.108-4.742A4 4 0 1011 11.238V12h1v1h-1v2a1 1 0 01-1 1H6a1 1 0 01-1-1v-2a1 1 0 011-1h3v-1.238a4.002 4.002 0 014.288-3.764 4.002 4.002 0 011.045 7.764L10.585 16.383a1 1 0 00-.922.617z" />
+      </svg>
+      Feature
+    </button>
+
+    <button id="report-bug" class="btn-action">
+      <svg style="width: 1rem; height: 1rem; color: #ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      Bug
+    </button>
   </div>
+
+  <footer style="margin-top: auto; text-align: center; padding: 0.5rem 0;">
+    <p style="font-size: 0.625rem; font-weight: 500; color: var(--slate-400); text-transform: uppercase; letter-spacing: 0.1em; margin: 0;">
+      Built with <i class="bi bi-heart-fill" style="color: var(--blue-600); font-size: 0.625rem;"></i> for LinkedIn
+    </p>
+  </footer>
+
 </body>
 </html>
