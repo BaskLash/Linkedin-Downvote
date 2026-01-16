@@ -1,21 +1,38 @@
 {
   "manifest_version": 3,
-  "name": "LinkedIn Dislike",
-  "version": "1.0.1",
-  "description": "Allows dislikes on LinkedIn posts.",
-  "permissions": ["scripting", "storage"],
-  "background": {
-  "service_worker": "background.js"
-},
-"action": {
-    "default_popup": "popup.html"
+  "name": "LinkedIn Downvote Button – Dislike Posts & Cringe Content",
+  "version": "1.0.2",
+  "description": "Add 👎 Downvote / Dislike Button to LinkedIn feed. Downvote cringe posts, AI spam, humblebrags & fake motivation content!",
+  "permissions": ["storage"],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon/icon16.png",
+      "32": "icon/icon32.png",
+      "48": "icon/icon48.png"
+    }
   },
+
+  "icons": {
+    "16": "icon/icon16.png",
+    "32": "icon/icon32.png",
+    "48": "icon/icon48.png",
+    "64": "icon/icon64.png",
+    "128": "icon/icon128.png"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
   "host_permissions": [
-  "*://www.linkedin.com/*",
-  "http://localhost:8080/*",
-  "http://127.0.0.1:8080/*",
-  "https://linkedin.prompt-in.com/*"
-],
+    "*://www.linkedin.com/*",
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*",
+    "https://linkedin.prompt-in.com/*"
+  ],
+
   "content_scripts": [
     {
       "matches": ["*://www.linkedin.com/*"],

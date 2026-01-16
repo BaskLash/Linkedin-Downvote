@@ -53,3 +53,45 @@ document.getElementById('feature-request').addEventListener("click", () => {
 document.getElementById('report-bug').addEventListener("click", () => {
   window.open("https://forms.gle/kYXTwLcuQ7eLPXo57", "_blank");
 })
+
+document.addEventListener("DOMContentLoaded", () => {
+  const shareBtn = document.getElementById("share-extension");
+
+  if (!shareBtn) return;
+
+  const shareUrl =
+    "https://chromewebstore.google.com/detail/linkedin-downvote-for-lin/cmnmohlcnjkoodfpjplhmmfldgacgjoh?authuser=1&hl=de";
+
+  shareBtn.addEventListener("click", async () => {
+    // 1. Try native share (best UX)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        // User cancelled → fallback silently
+      }
+    }
+
+    // 2. Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(`${shareUrl}`);
+      showShareFeedback("Link copied!");
+    } catch {
+      showShareFeedback("Copy failed 😢");
+    }
+  });
+
+  function showShareFeedback(text) {
+    const original = shareBtn.querySelector("span");
+    const prev = original.textContent;
+
+    original.textContent = text;
+
+    setTimeout(() => {
+      original.textContent = prev;
+    }, 1500);
+  }
+});

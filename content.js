@@ -1,11 +1,20 @@
 // === LinkedIn Dislike Extension – content.js ===
-// RYD-style dislike estimation (DISPLAY ONLY)
+// Optimized RYD-style dislike estimation (DISPLAY ONLY)
 
 const processedPosts = new WeakSet();
 const SMOOTHING = 20;
-const ACTIVE_COLOR = "#0a66c2"; // LinkedIn Blue
+const ACTIVE_COLOR = "#0a66c2";
 
-// === Utils ===
+// =========================
+// GLOBAL CACHES
+// =========================
+let cachedClientId = null;
+let votedCache = null;
+let isProcessing = false;
+
+// =========================
+// UTILS
+// =========================
 function parseReactionCount(text) {
   if (!text) return 0;
 
@@ -35,201 +44,247 @@ function estimateDisplayedDislikes(rawDislikes, totalReactions) {
   return Math.max(0, Math.round(ratio * totalReactions));
 }
 
-// === Robust Post-ID Detection ===
-function extractPostId(postElement) {
+// =========================
+// POST ID (CACHED IN DOM)
+// =========================
+function extractPostId(post) {
+  if (post.dataset.postId) return post.dataset.postId;
+
   const urnRegex = /urn:li:(?:activity|share):(\d+)/i;
-  let current = postElement;
+  let current = post;
 
   while (current && current !== document.body) {
     if (current.dataset?.urn) {
       const m = current.dataset.urn.match(urnRegex);
-      if (m) return m[1];
+      if (m) return (post.dataset.postId = m[1]);
     }
     current = current.parentElement;
   }
 
-  const link = postElement.querySelector('a[href*="/activity/"], a[href*="/posts/"]');
+  const link = post.querySelector('a[href*="/activity/"], a[href*="/posts/"]');
   if (link?.href) {
     const m = link.href.match(/activity[/-](\d+)/i);
-    if (m) return m[1];
+    if (m) return (post.dataset.postId = m[1]);
   }
 
-  return `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const temp =
+    `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  post.dataset.postId = temp;
+  return temp;
 }
 
-// === Client-ID ===
+// =========================
+// CLIENT ID (ONCE)
+// =========================
 async function getClientId() {
+  if (cachedClientId) return cachedClientId;
+
   return new Promise((resolve) => {
     chrome.storage.local.get(['client_id'], (r) => {
-      if (r.client_id) return resolve(r.client_id);
+      if (r.client_id) {
+        cachedClientId = r.client_id;
+        return resolve(r.client_id);
+      }
       const id = crypto.randomUUID();
-      chrome.storage.local.set({ client_id: id }, () => resolve(id));
+      chrome.storage.local.set({ client_id: id }, () => {
+        cachedClientId = id;
+        resolve(id);
+      });
     });
   });
 }
 
-// === Vote State Storage ===
+// =========================
+// VOTED POSTS (MEMORY CACHE)
+// =========================
 async function getVotedPosts() {
+  if (votedCache) return votedCache;
+
   return new Promise((resolve) => {
     chrome.storage.local.get(['linkdown-voted'], (r) => {
-      resolve(r['linkdown-voted'] || []);
+      votedCache = r['linkdown-voted'] || [];
+      resolve(votedCache);
     });
   });
 }
 
 async function setPostVoted(postId, voted) {
-  const votedPosts = await getVotedPosts();
-  const has = votedPosts.includes(postId);
+  const list = await getVotedPosts();
+  const has = list.includes(postId);
 
-  let updated;
-  if (voted && !has) {
-    updated = [...votedPosts, postId];
-  } else if (!voted && has) {
-    updated = votedPosts.filter(id => id !== postId);
-  } else {
-    return;
-  }
+  if (voted && !has) list.push(postId);
+  else if (!voted && has)
+    votedCache = list.filter(id => id !== postId);
+  else return;
 
-  return chrome.storage.local.set({ 'linkdown-voted': updated });
+  await chrome.storage.local.set({ 'linkdown-voted': votedCache });
 }
 
-// === UI State ===
-function applyDownvoteStyle(button, isActive) {
-  button.style.color = isActive ? ACTIVE_COLOR : "";
-  button.style.fontWeight = isActive ? "600" : "";
-  button.setAttribute("aria-pressed", isActive ? "true" : "false");
+// =========================
+// UI HELPERS
+// =========================
+function applyDownvoteStyle(btn, active) {
+  btn.style.color = active ? ACTIVE_COLOR : "";
+  btn.style.fontWeight = active ? "600" : "";
+  btn.setAttribute("aria-pressed", active ? "true" : "false");
 }
 
-// === Server Count → Display Logic ===
+// =========================
+// SERVER → DISPLAY LOGIC
+// =========================
 function updateDislikeCount(post, postId, counter) {
-  if (!counter) return;
+  if (!counter || !counter.isConnected) return;
 
   chrome.runtime.sendMessage(
     { action: "get-dislike-count", post_id: postId },
     (response) => {
       const raw = response?.dislike_count ?? 0;
 
-      const reactionSpan = post.querySelector(
-        "span.social-details-social-counts__reactions-count"
-      );
+      if (!post.dataset.totalReactions) {
+        const span = post.querySelector(
+          "span.social-details-social-counts__reactions-count"
+        );
+        post.dataset.totalReactions =
+          parseReactionCount(span?.innerText);
+      }
 
-      const totalReactions = parseReactionCount(reactionSpan?.innerText);
-      const displayed = estimateDisplayedDislikes(raw, totalReactions);
-
-      counter.textContent = displayed;
+      const total = Number(post.dataset.totalReactions) || 0;
+      counter.textContent =
+        estimateDisplayedDislikes(raw, total);
       counter.dataset.raw = raw;
     }
   );
 }
 
-// === Main Processor ===
+// =========================
+// MAIN PROCESSOR
+// =========================
 async function processPosts() {
-  const bars = document.querySelectorAll(".feed-shared-social-action-bar");
+  if (isProcessing) return;
+  isProcessing = true;
 
-  for (const bar of bars) {
-    const post = bar.closest("div.feed-shared-update-v2, article, .occludable-update");
-    if (!post || processedPosts.has(post)) continue;
-    processedPosts.add(post);
+  try {
+    const bars =
+      document.querySelectorAll(".feed-shared-social-action-bar");
 
-    const postId = extractPostId(post);
     const clientId = await getClientId();
+    const votedPosts = await getVotedPosts();
 
-    // =========================
-    // 1️⃣ Downvote Button (IMMER)
-    // =========================
-    if (!bar.querySelector("[data-linkdown]")) {
-      const span = document.createElement("span");
-      span.className =
-        "reactions-react-button feed-shared-social-action-bar__action-button";
+    for (const bar of bars) {
+      const post = bar.closest(
+        "div.feed-shared-update-v2, article, .occludable-update"
+      );
+      if (!post || processedPosts.has(post)) continue;
+      processedPosts.add(post);
 
-      const btn = document.createElement("button");
-      btn.dataset.linkdown = "true";
-      btn.className =
-        "artdeco-button artdeco-button--muted artdeco-button--tertiary";
-      btn.innerHTML = "👎 Downvote";
-      btn.title = "Downvote";
+      const postId = extractPostId(post);
 
-      span.appendChild(btn);
-      bar.insertBefore(span, bar.firstChild);
+      // =====================
+      // DOWNVOTE BUTTON
+      // =====================
+      if (!bar.querySelector("[data-linkdown]")) {
+        const span = document.createElement("span");
+        span.className =
+          "reactions-react-button feed-shared-social-action-bar__action-button";
 
-      const votedPosts = await getVotedPosts();
-      let isDownvoted = votedPosts.includes(postId);
-      applyDownvoteStyle(btn, isDownvoted);
+        const btn = document.createElement("button");
+        btn.dataset.linkdown = "true";
+        btn.className =
+          "artdeco-button artdeco-button--muted artdeco-button--tertiary";
+        btn.textContent = "👎 Downvote";
+        btn.title = "Downvote";
 
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
+        span.appendChild(btn);
+        bar.insertBefore(span, bar.firstChild);
 
-        const action = isDownvoted ? "undislike" : "dislike";
+        let isDownvoted = votedPosts.includes(postId);
+        applyDownvoteStyle(btn, isDownvoted);
 
-        chrome.runtime.sendMessage(
-          { action, post_id: postId, client_id: clientId },
-          async (response) => {
-            btn.disabled = false;
-            if (!response?.success) return;
+        btn.addEventListener("click", () => {
+          btn.disabled = true;
 
-            isDownvoted = !isDownvoted;
-            await setPostVoted(postId, isDownvoted);
-            applyDownvoteStyle(btn, isDownvoted);
+          chrome.runtime.sendMessage(
+            {
+              action: isDownvoted ? "undislike" : "dislike",
+              post_id: postId,
+              client_id: clientId
+            },
+            async (response) => {
+              btn.disabled = false;
+              if (!response?.success) return;
 
-            const counter = post.querySelector(".linkdown-metrics-count");
-            updateDislikeCount(post, postId, counter);
-          }
-        );
-      });
-    }
+              isDownvoted = !isDownvoted;
+              await setPostVoted(postId, isDownvoted);
+              applyDownvoteStyle(btn, isDownvoted);
 
-    // ===================================
-    // 2️⃣ Metrics (NUR WENN MÖGLICH)
-    // ===================================
-    let counter = post.querySelector(".linkdown-metrics-count");
-    if (!counter) {
-      const reactionsContainer = post.querySelector(".social-details-social-counts");
-      const targetLi = reactionsContainer?.querySelector("li[class^='social-details']");
+              const counter =
+                post.querySelector(".linkdown-metrics-count");
+              updateDislikeCount(post, postId, counter);
+            }
+          );
+        });
+      }
 
-      if (targetLi) {
+      // =====================
+      // METRICS
+      // =====================
+      let counter =
+        post.querySelector(".linkdown-metrics-count");
 
-const btn = document.createElement("button");
-btn.type = "button";
-btn.setAttribute("aria-label", "0 downvotes");
-btn.className =
-  "t-black--light display-flex align-items-center " +
-  "social-details-social-counts__count-value " +
-  "text-body-small hoverable-link-text linkdown-downvote-metrics";
-btn.style.marginLeft = "10px";
-btn.style.cursor = "unset";
-btn.style.display = "flex";
-btn.style.alignItems = "center";
-btn.style.gap = "4px";
+      if (!counter) {
+        const reactions =
+          post.querySelector(".social-details-social-counts");
+        const targetLi =
+          reactions?.querySelector("li[class^='social-details']");
 
-const img = document.createElement("img");
-img.src =
-  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><text y='14' font-size='14'>👎</text></svg>";
-img.alt = "downvote";
+        if (targetLi) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "t-black--light display-flex align-items-center " +
+            "social-details-social-counts__count-value " +
+            "text-body-small hoverable-link-text linkdown-downvote-metrics";
+          btn.style.marginLeft = "10px";
+          btn.style.cursor = "unset";
+          btn.style.display = "flex";
+          btn.style.alignItems = "center";
+          btn.style.gap = "4px";
 
-counter = document.createElement("span");
-counter.className =
-  "social-details-social-counts__reactions-count linkdown-metrics-count";
-counter.style.fontWeight = "bold";
-counter.textContent = "0";
+          const img = document.createElement("img");
+          img.src =
+            "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><text y='14' font-size='14'>👎</text></svg>";
+          img.alt = "downvote";
 
-btn.appendChild(img);
-btn.appendChild(counter);
-targetLi.appendChild(btn);
+          counter = document.createElement("span");
+          counter.className =
+            "social-details-social-counts__reactions-count linkdown-metrics-count";
+          counter.style.fontWeight = "bold";
+          counter.textContent = "0";
 
+          btn.appendChild(img);
+          btn.appendChild(counter);
+          targetLi.appendChild(btn);
 
-
-
-        updateDislikeCount(post, postId, counter);
+          updateDislikeCount(post, postId, counter);
+        }
       }
     }
+  } finally {
+    isProcessing = false;
   }
 }
 
-// === Scroll Observer ===
-let t;
-window.addEventListener("scroll", () => {
-  clearTimeout(t);
-  t = setTimeout(processPosts, 100);
+// =========================
+// OBSERVER (NO SCROLL HACK)
+// =========================
+const observer = new MutationObserver(() => {
+  processPosts().catch(console.error);
 });
 
-processPosts();
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Initial run
+processPosts().catch(console.error);
