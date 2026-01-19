@@ -164,13 +164,18 @@ async function processPosts() {
   isProcessing = true;
 
   try {
-    const bars =
-      document.querySelectorAll(".feed-shared-social-action-bar");
+    // More flexible bar detection
+    const bars = document.querySelectorAll(
+      ".feed-shared-social-action-bar, [role='toolbar']"
+    );
 
     const clientId = await getClientId();
     const votedPosts = await getVotedPosts();
 
     for (const bar of bars) {
+      // Ensure this toolbar belongs to a feed post
+      if (!bar.querySelector("button")) continue;
+
       const post = bar.closest(
         "div.feed-shared-update-v2, article, .occludable-update"
       );
@@ -195,7 +200,31 @@ async function processPosts() {
         btn.title = "Downvote";
 
         span.appendChild(btn);
-        bar.insertBefore(span, bar.firstChild);
+
+        // 🔑 Premium-safe anchor:
+        // Insert next to the Like / React button
+        const likeButton = bar.querySelector("button[aria-label*='Like'], button[aria-label*='React']");
+
+        // 🧪 Detect Premium / experimental UI variants
+        if (likeButton && !likeButton.offsetParent) {
+          console.warn(
+            "[LinkDown] Like button hidden or detached — different LinkedIn UI variant",
+            { bar, postId }
+          );
+        }
+        
+        const anchor =
+          likeButton?.closest("span, div");
+
+        if (anchor?.parentElement) {
+          anchor.parentElement.insertBefore(
+            span,
+            anchor.nextSibling
+          );
+        } else {
+          // Fallback — append without breaking layout
+          bar.appendChild(span);
+        }
 
         let isDownvoted = votedPosts.includes(postId);
         applyDownvoteStyle(btn, isDownvoted);
@@ -226,7 +255,7 @@ async function processPosts() {
       }
 
       // =====================
-      // METRICS
+      // METRICS (UNCHANGED)
       // =====================
       let counter =
         post.querySelector(".linkdown-metrics-count");
